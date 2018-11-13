@@ -103,9 +103,9 @@ void	BD_Push_Back(BoundedDeque *BL, int data)
 	if(BL->max_length > 0 && BL->length < BL->max_length)
 	{
 		//Consider the rotation in the array.
-		BL->end = (BL->end + 1) % BL->max_length;
+		BL->end = (BL->end == BL->max_length - 1 ? 0 : BL->end + 1);
 		//Consider the case where this is the first element.
-		if(BL->length == 0) BL->begin = BL->end;
+		if (BL->length == 0) BL->begin = BL->end;
 		BL->container[BL->end] = data;
 		++BL->length;
 	}
@@ -123,7 +123,7 @@ Error	BD_Pop_Front(BoundedDeque *BL, int *data)
 		int   aux_index = BL->begin;
 		
 		//Consider the rotation in the array.
-		BL->begin = (BL->begin + 1) % BL->max_length;
+		BL->begin = (BL->begin == BL->max_length - 1 ? 0 : BL->begin + 1);
 		//Consider the case where this is the only element.
 		if(BL->length == 1)
 		{
@@ -181,7 +181,8 @@ void    BD_Delete_Front(BoundedDeque *BL)
 			BL->begin = 0;
 			BL->end = 0;
 		}
-		else BL->begin = (BL->begin + 1) % BL->max_length; //Take in account the rotation in the array.
+		//Take in account the rotation in the array.
+		else BL->begin = (BL->begin == BL->max_length - 1 ? 0 : BL->begin + 1);
 		--BL->length;
 	}
 }
@@ -199,11 +200,8 @@ void    BD_Delete_Back(BoundedDeque *BL)
 			BL->end = 0;
 		}
 		else
-		{
-			//Take in account the rotation in the array.
-			if(BL->end == 0) BL->end = BL->max_length - 1;
-			else --BL->end;
-		}
+		//Take in account the rotation in the array.
+		BL->end = (BL->end == 0 ? BL->max_length - 1 : BL->end - 1);
 		--BL->length;
 	}
 }

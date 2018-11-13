@@ -13,7 +13,7 @@ const int UNMATCHED = 2147483647;
 // A big number.
 const double INFINITY = 1000000000.0;
 // The type for the edge costs.
-typedef int	costType;
+typedef double	costType;
 
 //*****************************************************************************************
 // PERSON STRUCTURE
@@ -66,7 +66,7 @@ Error	Person_Allocate(Person *P, int num_neighbors)
 		P->neighbors = (int*) malloc(num_neighbors * sizeof(int));
 		if (P->neighbors == NULL) return error;
 		// Try to allocate the costs.
-		P->costs = (int*) malloc(num_neighbors * sizeof(costType));
+		P->costs = (costType*) malloc(num_neighbors * sizeof(costType));
 		if (P->costs == NULL)
 		{
 			free((char *) P->neighbors);

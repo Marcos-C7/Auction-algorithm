@@ -129,7 +129,7 @@ Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
 	int			size_int = sizeof(int);
 	int			num_neighbors;
 	int			neighbor;
-	costType	cost;
+	int			cost;
 	
 	
 	// Open the graph file and check for errors.
@@ -174,10 +174,10 @@ Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
 			fread(&neighbor, size_int, 1, graph_file);
 			Swap_endianness_int(&neighbor);
 			fread(&cost, size_int, 1, graph_file);
-			Swap_endianness_costType(&cost);
+			Swap_endianness_int(&cost);
 			// Put them in the respective arrays.
 			Instance->Persons[person_i].neighbors[neighbors_j] = neighbor;
-			Instance->Persons[person_i].costs[neighbors_j] = cost;
+			Instance->Persons[person_i].costs[neighbors_j] = (costType)cost;
 			
 			// Update the maximum absolute cost.
 			if ((int)abs(cost) > Instance->max_abs_cost) Instance->max_abs_cost = (int)abs(cost);
@@ -188,6 +188,20 @@ Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
 	
 	Error_Set(&error, 1, "OK");
 	return error;
+}
+
+// Save the resulting matching and its cost to a text file.
+void	AS_Save_Matching_Text(AuctionSolver *Instance, char *file_path)
+{
+	FILE	*output_file;
+	
+	// Save the matching cost and the solving time.
+	output_file = fopen(file_path, "w");
+	fprintf(output_file, "cost %.0f\n", (double)Instance->matching_cost);
+	fprintf(output_file, "time %f\n", Instance->solving_time);
+	// Save the matching edge by edge, space separated as: "person_index object_index cost"
+	for (int object_i = 0; object_i < Instance->num_objects; ++object_i)
+		fprintf(output_file, "f %d %d %.0lf\n", Instance->Matching[object_i], object_i, Instance->Matching_costs[object_i]);
 }
 
 // Displays the graph contained in the 'AuctionSolver' instance.
@@ -217,40 +231,6 @@ void	AS_Display_Instance(AuctionSolver *Instance)
 	printf("------------------------------------------------------------\n");
 }
 
-// At the start of every scaling phase, after reducing epsilon, normally the matching and the set of unmatched persons are emptied.
-// Instead, this function keeps all the edges that still satisfy the epsilon-CS condition with the new epsilon,
-// making sure that the Matching, Matching_costs, matching_cost and Unmatched_persons are consistent to start the
-// next phase.
-void	AS_Partial_Reset(AuctionSolver *Instance, double epsilon)
-{
-	int			p, num_neighbors, neighbor;
-	costType	cost;
-	double		reduced_cost, min_reduced_cost, match_reduced_cost;
-	
-	min_reduced_cost = INFINITY;
-	for (int object_i = 0; object_i < Instance->num_objects; ++object_i)
-	{
-		p = Instance->Matching[object_i];
-		num_neighbors = Instance->Persons[p].num_neighbors;
-		for (int neighbors_j = 0; neighbors_j < num_neighbors; ++neighbors_j)
-		{
-			neighbor = Instance->Persons[p].neighbors[neighbors_j];
-			cost = Instance->Persons[p].costs[neighbors_j];
-			reduced_cost = cost - Instance->Prices[neighbor];
-			if (neighbor == object_i) match_reduced_cost = reduced_cost;
-			if (reduced_cost < min_reduced_cost) min_reduced_cost = reduced_cost;
-		}
-		
-		if (match_reduced_cost > min_reduced_cost + epsilon)
-		{
-			Instance->matching_cost -= Instance->Matching_costs[object_i];
-			Instance->Matching[object_i] = UNMATCHED;
-			Instance->Matching_costs[object_i] = 0;
-			BD_Push_Back(&Instance->Unmatched_persons, p);
-		}
-	}
-}
-
 // Given the index 'I' of an unmatched person, this function finds the index of the object that has the best_reduced_cost,
 // the edge cost with this object, and the value of 'gamma' which is the difference 'second_best_reduced_cost - best_reduced_cost'.
 // The first is returned as a regular return value and the other two are returned by reference.
@@ -277,14 +257,31 @@ int		AS_Find_best_object(AuctionSolver *Instance, int I, double *gamma, costType
 	}
 	else
 	{
-		//Scan the array of neighbours.
-		for(int neighs_i = 0; neighs_i < person_ptr->num_neighbors; ++neighs_i)
+		// Find the first two best reduced costs.
+		best_reduced_cost = person_ptr->costs[0] - Instance->Prices[person_ptr->neighbors[0]];
+		auxiliary_reduced_cost = person_ptr->costs[1] - Instance->Prices[person_ptr->neighbors[1]];
+		if (best_reduced_cost <= auxiliary_reduced_cost)
+		{
+			second_best_reduced_cost = auxiliary_reduced_cost;
+			best_object = person_ptr->neighbors[0];
+			*cost_of_best_object = person_ptr->costs[0];
+		}
+		else
+		{
+			second_best_reduced_cost = best_reduced_cost;
+			best_reduced_cost = auxiliary_reduced_cost;
+			best_object = person_ptr->neighbors[1];
+			*cost_of_best_object = person_ptr->costs[1];
+		}
+		
+		//Scan the rest of neighbours.
+		for(int neighs_i = 2; neighs_i < person_ptr->num_neighbors; ++neighs_i)
 		{
 			//Get the reduced cost of the edge.
-			auxiliary_reduced_cost = ((double)person_ptr->costs[neighs_i]) - ((double)Instance->Prices[person_ptr->neighbors[neighs_i]]);
+			auxiliary_reduced_cost = person_ptr->costs[neighs_i] - Instance->Prices[person_ptr->neighbors[neighs_i]];
 			
 			//Update the smallest and second smallest reduced costs.
-			if(auxiliary_reduced_cost < best_reduced_cost || best_reduced_cost == INFINITY)
+			if(auxiliary_reduced_cost < best_reduced_cost)
 			{
 				second_best_reduced_cost = best_reduced_cost;
 				best_reduced_cost = auxiliary_reduced_cost;
@@ -292,7 +289,7 @@ int		AS_Find_best_object(AuctionSolver *Instance, int I, double *gamma, costType
 				best_object = person_ptr->neighbors[neighs_i];
 				*cost_of_best_object = person_ptr->costs[neighs_i];
 			}
-			else if(auxiliary_reduced_cost < second_best_reduced_cost || second_best_reduced_cost == INFINITY)
+			else if(auxiliary_reduced_cost < second_best_reduced_cost)
 				second_best_reduced_cost = auxiliary_reduced_cost;
 		}
 	}
@@ -309,7 +306,7 @@ void	AS_eOpt_Matching(AuctionSolver *Instance, double epsilon)
 {
 	//A person.
 	int			I = 0;
-	//The bidding increment.
+	//The bidding difference.
 	double		gamma = 0.0;
 	//The best option for a person.
 	int			best_object = 0;
@@ -380,10 +377,10 @@ Error	AS_Solve_Instance(AuctionSolver *Instance, double initial_epsilon, double 
 		return error;
 	}
 	
-	for(int objects_i = 0; objects_i < Instance->num_objects; ++objects_i)
+	for(int object_i = 0; object_i < Instance->num_objects; ++object_i)
 	{
-		Instance->Prices[objects_i] = 0;
-		Instance->Matching_costs[objects_i] = 0;
+		Instance->Prices[object_i] = 0;
+		Instance->Matching_costs[object_i] = 0;
 	}
 	
 	epsilon = initial_epsilon;
@@ -401,16 +398,11 @@ Error	AS_Solve_Instance(AuctionSolver *Instance, double initial_epsilon, double 
 		epsilon /= alpha;
 		if(epsilon < final_epsilon) epsilon = final_epsilon;
 		
-		if (full_reset)
-		{
-			//Discard the matching, and add all persons to the list of unmatched persons.
-			for(int objects_i = 0; objects_i < Instance->num_objects; ++objects_i)
-				Instance->Matching[objects_i] = UNMATCHED;
-			for(int person_i = 0; person_i < Instance->num_persons; ++person_i)
-				BD_Push_Back(&Instance->Unmatched_persons, person_i);
-			full_reset = 0;
-		}
-		else AS_Partial_Reset(Instance, epsilon);
+		//Discard the matching, and add all persons to the list of unmatched persons.
+		for(int object_i = 0; object_i < Instance->num_objects; ++object_i)
+			Instance->Matching[object_i] = UNMATCHED;
+		for(int person_i = 0; person_i < Instance->num_persons; ++person_i)
+			BD_Push_Back(&Instance->Unmatched_persons, person_i);
 		
 		//Find an epsilon-optimal matching.
 		AS_eOpt_Matching(Instance, epsilon);
@@ -421,8 +413,8 @@ Error	AS_Solve_Instance(AuctionSolver *Instance, double initial_epsilon, double 
 	Instance->solving_time = (double) (My_time() - start_time) / sysconf(_SC_CLK_TCK);
 	
 	Instance->matching_cost = 0;
-	for(int objects_i = 0; objects_i < Instance->num_objects; ++objects_i)
-		Instance->matching_cost += Instance->Matching_costs[objects_i];
+	for(int object_i = 0; object_i < Instance->num_objects; ++object_i)
+		Instance->matching_cost += Instance->Matching_costs[object_i];
 }
 
 
