@@ -13,7 +13,8 @@
 
 // Allocates memory for an array using 'malloc', deleting the current memory allocated, if any.
 // To detect memory currently allocated it tests for non NULL value of the pointer.
-void		Allocate_Array(char **array, int size)
+// The size is in bytes.
+void		Allocate_array(char **array, int size)
 {
 	if (*array != NULL) free(*array);
 	*array = NULL;
@@ -21,7 +22,7 @@ void		Allocate_Array(char **array, int size)
 }
 
 // Frees the memory allocated to a pointer, and sets the pointer to NULL.
-void		Delete_Array(char **array)
+void		Delete_array(char **array)
 {
 	free(*array);
 	*array = NULL;
@@ -31,14 +32,6 @@ void		Delete_Array(char **array)
 void		Swap_endianness_int(int *v)
 {
 	int aux = *v;
-	int size = sizeof(int);
-	for(char i = 0; i < size; ++i) ((char*)v)[i] = ((char*)&aux)[size - i - 1];
-}
-
-// Given an costType value, reverse its bytes.
-void		Swap_endianness_costType(costType *v)
-{
-	costType aux = *v;
 	int size = sizeof(int);
 	for(char i = 0; i < size; ++i) ((char*)v)[i] = ((char*)&aux)[size - i - 1];
 }
@@ -109,9 +102,9 @@ void	AS_Defaults(AuctionSolver *Instance)
 void	AS_Clear(AuctionSolver *Instance)
 {
 	Graph_Clear(&Instance->Persons, Instance->num_persons);
-	Delete_Array((char**)&Instance->Prices);
-	Delete_Array((char**)&Instance->Matching);
-	Delete_Array((char**)&Instance->Matching_costs);
+	Delete_array((char**)&Instance->Prices);
+	Delete_array((char**)&Instance->Matching);
+	Delete_array((char**)&Instance->Matching_costs);
 	BD_Clear(&Instance->Unmatched_persons);
 	Instance->num_persons = 0;
 	Instance->num_objects = 0;
@@ -121,8 +114,9 @@ void	AS_Clear(AuctionSolver *Instance)
 }
 
 // Load a graph from the file in 'file_path' onto the AuctionSolver instance.
+// The file format must be binary.
 // The members that will be modified are: 'num_persons, num_objects, max_abs_cost, Persons'.
-Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
+Error	AS_Load_graph_Binary(AuctionSolver *Instance, char *file_path)
 {
 	Error		error = {0, ""};
 	FILE		*graph_file;
@@ -148,7 +142,7 @@ Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
 	{
 		Instance->num_persons = 0;
 		Instance->num_objects = 0;
-		Error_Set(&error, -1, "Error: no memory for the allocation of a person in 'AS_Load_graph'");
+		Error_Set(&error, -1, "Error: no memory for the allocation of a person in 'AS_Load_graph_Binary'");
 		return error;
 	}
 	
@@ -163,12 +157,12 @@ Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
 		if (error.code == -1)
 		{
 			AS_Clear(Instance);
-			strcat(error.msg, " In 'AS_Load_graph'");
+			strcat(error.msg, " In 'AS_Load_graph_Binary'");
 			return error;
 		}
 		
 		// Fill the neighbors and costs arrays of the person.
-		for(int neighbors_j = 0; neighbors_j < num_neighbors; ++neighbors_j)
+		for(int neighbor_j = 0; neighbor_j < num_neighbors; ++neighbor_j)
 		{
 			// Get the neighbor index and the edge cost.
 			fread(&neighbor, size_int, 1, graph_file);
@@ -176,8 +170,8 @@ Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
 			fread(&cost, size_int, 1, graph_file);
 			Swap_endianness_int(&cost);
 			// Put them in the respective arrays.
-			Instance->Persons[person_i].neighbors[neighbors_j] = neighbor;
-			Instance->Persons[person_i].costs[neighbors_j] = (costType)cost;
+			Instance->Persons[person_i].neighbors[neighbor_j] = neighbor;
+			Instance->Persons[person_i].costs[neighbor_j] = (costType)cost;
 			
 			// Update the maximum absolute cost.
 			if ((int)abs(cost) > Instance->max_abs_cost) Instance->max_abs_cost = (int)abs(cost);
@@ -190,8 +184,129 @@ Error	AS_Load_graph(AuctionSolver *Instance, char *file_path)
 	return error;
 }
 
+// Load a graph from the file in 'file_path' onto the AuctionSolver instance.
+// The file format must be text.
+// The members that will be modified are: 'num_persons, num_objects, max_abs_cost, Persons'.
+Error	AS_Load_graph_Text(AuctionSolver *Instance, char *file_path)
+{
+	Error		error;
+	FILE		*graph_file;
+	char		line[200];
+	char		aux_str[100];
+	int			*aux_neighbors = NULL;
+	costType	*aux_costs = NULL;
+	// The index of a person, of an object and the cost between them.
+	int			person_i;
+	int			object_j;
+	int			cost;
+	// For counting the number of neighbors of a person.
+	int			num_neighbors;
+	// To detect when we have reached the adjacency list of a different person.
+	int			aux_person;
+	
+	
+	// For safe string processing.
+	for (int i = 0; i < 200; ++i) line[i] = '\0';
+	for (int i = 0; i < 100; ++i) aux_str[i] = '\0';
+	
+	// Open the text file.
+	graph_file = fopen(file_path, "r");
+	
+	// Read the number of persons and the number of objects.
+	fgets(line, 200, graph_file);
+	sscanf(line, "%s %d", aux_str, &Instance->num_persons);
+	fgets(line, 200, graph_file);
+	sscanf(line, "%s %d", aux_str, &Instance->num_objects);
+	
+	// Make the allocation of the memory. Initialized to zero for safe clear in case of future memory allocation error.
+	Graph_Allocate(&Instance->Persons, Instance->num_persons);
+	if (Instance->Persons == NULL)
+	{
+		Instance->num_persons = 0;
+		Instance->num_objects = 0;
+		Error_Set(&error, -1, "Error: no memory for the allocation of a person in 'AS_Load_graph_Text'");
+		return error;
+	}
+	
+	// Allocate auxiliary space for an adjacency list.
+	Allocate_array((char**)&aux_neighbors, Instance->num_objects * sizeof(int));
+	Allocate_array((char**)&aux_costs, Instance->num_objects * sizeof(costType));
+	if (aux_neighbors ==  NULL || aux_costs == NULL)
+	{
+		AS_Clear(Instance);
+		Delete_array((char**) aux_neighbors);
+		Delete_array((char**) aux_costs);
+		Error_Set(&error, -1, "Error: no memory for the allocation of a person in 'AS_Load_graph_Text'");
+		return error;
+	}
+	
+	// Work apart the first line (edge).
+	fgets(line, 200, graph_file);
+	for(int i = 0; line[i] != '\0'; ++i)
+		if (line[i] == ',' || line[i] == '\r' || line[i] == '\n') line[i] = ' ';
+	sscanf(line, "%d %d %d", &person_i, &object_j, &cost);
+	aux_neighbors[0] = object_j;
+	aux_costs[0] = cost;
+	
+	num_neighbors = 1;
+	aux_person = person_i;
+	// Read line by line (i.e. edge by edge).
+	// We will read one adjacency list at a time in 'aux_neighbors' and 'aux_costs' and dump it in the corresponding person.
+	while(fgets(line, 200, graph_file) != NULL)
+	{
+		// From the line get the person index, the object index, and the edge cost.
+		for(int i = 0; line[i] != '\0'; ++i)
+			if (line[i] == ',' || line[i] == '\r' || line[i] == '\n') line[i] = ' ';
+		sscanf(line, "%d %d %d", &person_i, &object_j, &cost);
+		
+		// If we have reached the adjacency list of a different person, save the current one and start the next.
+		if (aux_person != person_i)
+		{
+			// Since we now know the size of the adjacency list, allocate space.
+			error = Person_Allocate(&Instance->Persons[aux_person], num_neighbors);
+			if (error.code == -1)
+			{
+				AS_Clear(Instance);
+				strcat(error.msg, " In 'AS_Load_graph_Text'");
+				return error;
+			}
+			// Dump the current adjacency list into the person 'person_i'.
+			for (int neighbor_j = 0; neighbor_j < num_neighbors; ++neighbor_j)
+			{
+				Instance->Persons[aux_person].neighbors[neighbor_j] = aux_neighbors[neighbor_j];
+				Instance->Persons[aux_person].costs[neighbor_j] = aux_costs[neighbor_j];
+			}
+			
+			aux_person = person_i;
+			num_neighbors = 0;
+		}
+		
+		aux_neighbors[num_neighbors] = object_j;
+		aux_costs[num_neighbors] = (costType) cost;
+		++num_neighbors;
+	}
+	// The last person wont be created inside the loop, so we create it here.
+	error = Person_Allocate(&Instance->Persons[aux_person], num_neighbors);
+	if (error.code == -1)
+	{
+		AS_Clear(Instance);
+		strcat(error.msg, " In 'AS_Load_graph_Text'");
+		return error;
+	}
+	for (int neighbor_j = 0; neighbor_j < num_neighbors; ++neighbor_j)
+	{
+		Instance->Persons[aux_person].neighbors[neighbor_j] = aux_neighbors[neighbor_j];
+		Instance->Persons[aux_person].costs[neighbor_j] = aux_costs[neighbor_j];
+	}
+	
+	// Free the auxiliary adjacency list.
+	Delete_array((char**) &aux_neighbors);
+	Delete_array((char**) &aux_costs);
+	fclose(graph_file);
+}
+
 // Save the resulting matching and its cost to a text file.
-void	AS_Save_Matching_Text(AuctionSolver *Instance, char *file_path)
+void	AS_Save_matching_Text(AuctionSolver *Instance, char *file_path)
 {
 	FILE	*output_file;
 	
@@ -202,11 +317,14 @@ void	AS_Save_Matching_Text(AuctionSolver *Instance, char *file_path)
 	// Save the matching edge by edge, space separated as: "person_index object_index cost"
 	for (int object_i = 0; object_i < Instance->num_objects; ++object_i)
 		fprintf(output_file, "f %d %d %.0lf\n", Instance->Matching[object_i], object_i, Instance->Matching_costs[object_i]);
+	
+	fclose(output_file);
 }
 
 // Displays the graph contained in the 'AuctionSolver' instance.
 // It shows the number of persons and objects; and the adjacency lists of the persons as
 // pairs (neighbor, cost).
+// Only use on very small instances, to see that the instance is being loaded correctly.
 void	AS_Display_Instance(AuctionSolver *Instance)
 {
 	int			num_neighbors;
@@ -220,11 +338,11 @@ void	AS_Display_Instance(AuctionSolver *Instance)
 		num_neighbors = Instance->Persons[person_i].num_neighbors;
 		printf("--------------\n");
 		printf("Num_Neighbors of p%d:%d\n", person_i, num_neighbors);
-		for(int neighbors_j = 0; neighbors_j < num_neighbors; ++neighbors_j)
+		for(int neighbor_j = 0; neighbor_j < num_neighbors; ++neighbor_j)
 		{
-			neighbor = Instance->Persons[person_i].neighbors[neighbors_j];
-			cost = Instance->Persons[person_i].costs[neighbors_j];
-			printf("(%d,%d) ", neighbor, cost);
+			neighbor = Instance->Persons[person_i].neighbors[neighbor_j];
+			cost = Instance->Persons[person_i].costs[neighbor_j];
+			printf("(%d,%d) ", neighbor, (int)cost);
 		}
 		printf("\n");
 	}
@@ -237,9 +355,9 @@ void	AS_Display_Instance(AuctionSolver *Instance)
 int		AS_Find_best_object(AuctionSolver *Instance, int I, double *gamma, costType *cost_of_best_object)
 {
 	//The smallest and the second smallest losses with very big values.
-	double		best_reduced_cost = INFINITY;
-	double		second_best_reduced_cost = INFINITY;
-	double		auxiliary_reduced_cost = INFINITY;
+	double		best_reduced_cost = _INFINITY;
+	double		second_best_reduced_cost = _INFINITY;
+	double		auxiliary_reduced_cost = _INFINITY;
 	
 	//The variable we will return.
 	int			best_object = UNMATCHED;
@@ -362,11 +480,11 @@ Error	AS_Solve_Instance(AuctionSolver *Instance, double initial_epsilon, double 
 	
 	//MEMORY ALLOCATION.
 	//Allocate memory for the price of each object.
-	Allocate_Array((char**)&Instance->Prices, Instance->num_objects * sizeof(double));
+	Allocate_array((char**)&Instance->Prices, Instance->num_objects * sizeof(double));
 	//Allocate memory for the matching vector of the objects.
-	Allocate_Array((char**)&Instance->Matching, Instance->num_objects * sizeof(double));
+	Allocate_array((char**)&Instance->Matching, Instance->num_objects * sizeof(double));
 	//Allocate memory for the cost of the resulting matching.
-	Allocate_Array((char**)&Instance->Matching_costs, Instance->num_objects * sizeof(double));
+	Allocate_array((char**)&Instance->Matching_costs, Instance->num_objects * sizeof(double));
 	//Allocate memory for the unmatched persons list.
 	BD_AllocateMemory(&Instance->Unmatched_persons, Instance->num_persons);
 	

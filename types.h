@@ -11,7 +11,7 @@
 // Value used to denote that a vertex is not matched.
 const int UNMATCHED = 2147483647;
 // A big number.
-const double INFINITY = 1000000000.0;
+const double _INFINITY = 1000000000.0;
 // The type for the edge costs.
 typedef double	costType;
 
