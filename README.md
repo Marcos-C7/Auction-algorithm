@@ -17,7 +17,7 @@ smallest side of the graph.
 Another problem that can be solved is to find a maximum-cardinality matching of minimum cost in a bipartite graph with no
 (one-side) perfect matchings. For more information about these transformations contact `esocram@gmail.com`.
 
-### Prorgam usage
+### Program usage
 
 The Auction Algorithm considers the left hand side vertices of the bipartite graph as Persons and the right hand side 
 vertices as Objects. We will keep this terminology. Also all the edge costs (weights) must be integer.
