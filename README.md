@@ -19,7 +19,7 @@ Another problem that can be solved is to find a maximum-cardinality matching of 
 
 ### Program usage
 
-The Auction Algorithm considers the left hand side vertices of the bipartite graph as Persons and the right hand side 
+The Auction Algorithm considers the left-hand side vertices of the bipartite graph as Persons and the right-hand side 
 vertices as Objects. We will keep this terminology. Also all the edge costs (weights) must be integer.
 
 The solver works through an interface given in the header file "AP_Tools.h" (for Assignment Problem Tools).
@@ -81,7 +81,7 @@ person with index '0'. Since we already know that the edges in the adjacency lis
 to include this index in the respective edges. the adjacency list has the following structure: first the number of neighbors, 
 say 'k_0', followed by 'k_0' pairs of values [index_of_neighbor_object, cost].
 After the adjacency list of person '0' is the adjacency list of person '1', which is similar to the one just described, and 
-so on until the adjacecy of person 'N-1'.
+so on until the adjacecy list of person 'N-1'.
 
 An ilustration of an example of a valid binary file is the following, which contains the same graph as the example of the text format:
 ```
