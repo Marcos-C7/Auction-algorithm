@@ -316,7 +316,7 @@ void	AS_Save_matching_Text(AuctionSolver *Instance, char *file_path)
 	fprintf(output_file, "time %f\n", Instance->solving_time);
 	// Save the matching edge by edge, space separated as: "person_index object_index cost"
 	for (int object_i = 0; object_i < Instance->num_objects; ++object_i)
-		fprintf(output_file, "f %d %d %.0lf\n", Instance->Matching[object_i], object_i, Instance->Matching_costs[object_i]);
+		fprintf(output_file, "%d,%d,%.0lf\n", Instance->Matching[object_i], object_i, Instance->Matching_costs[object_i]);
 	
 	fclose(output_file);
 }
