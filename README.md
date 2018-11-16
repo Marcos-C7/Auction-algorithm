@@ -125,3 +125,8 @@ Once a matching has ben found in an 'AuctionSolver' instance, we can save the ma
 void	AS_Save_matching_Text(AuctionSolver *Instance, char *file_path);
 ```
 the resulting file is structured as described in the section *Program usage*.
+
+Once you are done with the 'AuctionSolver' instance, use the following function to free the dinamically allocated memory:
+```
+void	AS_Clear(AuctionSolver *Instance);
+```
