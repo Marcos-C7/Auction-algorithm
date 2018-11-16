@@ -1,4 +1,4 @@
-# Auction-algorithm
+# Auction algorithm
 Implementation in C of the \epsilon-Scaling Auction Algorithm for the Assignment Problem
 `[D. P. Bertsekas, Auction algorithms for network flow problems: A tutorial introduction, 
 Computational optimization and applications, Vol. 1, pp. 7-66, 1992]`.
