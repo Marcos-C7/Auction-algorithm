@@ -28,6 +28,7 @@ and a function for saving the resulting matching to a text file.
 For now we will focus on the implementation given in "auction.c",
 which makes use of the interface and automatically loads a weighted bipartite graph from a file, solves it and writes
 the result in a file.
+The source should compile with `gcc -O3 auction.c`, making sure that the header files are in hand for the compiler.
 
 Once compiled the source `"auction.c"`, and assuming an executable called "auction.exe" was created, the usage of the program
 via the console is as follows:
@@ -111,8 +112,8 @@ There is a function to load a graph from a text file to an 'AuctionSolver' insta
 Error	AS_Load_graph_Text(AuctionSolver *Instance, char *file_path);
 ```
 
-Once a weighted graph has been loaded in an 'AuctionSolver' instance, we can use a function to find a minimum cost perfect matching
-via the \epsilon-Scaling Auction Algorithm:
+Once a weighted graph has been loaded in an 'AuctionSolver' instance, to find a minimum cost perfect matching
+via the \epsilon-Scaling Auction Algorithm we can use the following function:
 ```
 Error	AS_Solve_Instance(AuctionSolver *Instance, double initial_epsilon, double alpha, double final_epsilon);
 ```
