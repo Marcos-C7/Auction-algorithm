@@ -86,7 +86,7 @@ An ilustration of an example of a valid binary file is the following, which cont
 ```
 3,3,[2,0,32,1,54],[1,2,12],[2,2,30,1,25]
 ```
-just for inlustration purposes we enclosed each adjacency list in square brackets. Remember that all the values must be written in
+just for ilustration purposes we enclosed each adjacency list in square brackets. Remember that all the values must be written in
 Big-Endian order.
 
 ### About the interface
